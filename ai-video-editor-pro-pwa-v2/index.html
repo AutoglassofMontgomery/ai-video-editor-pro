@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>AI Video Editor Pro — v2</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#667eea" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="AI Video v2" />
+  <style>
+    html, body { height: 100%; }
+    body { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); height: 100%; overflow: hidden; }
+    .app-container { display: flex; flex-direction: column; height: 100vh; background: #0f0f23; color: white; }
+    .header { background: #16213e; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2a4a; }
+    .logo { font-size: 18px; font-weight: 800; letter-spacing: .3px; background: linear-gradient(45deg, #667eea, #9b6bff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-controls { display: flex; gap: 8px; align-items: center; }
+    .btn { padding: 8px 12px; border: none; border-radius: 10px; cursor: pointer; font-weight: 700; transition: transform .15s ease; font-size: 14px; }
+    .btn:active { transform: translateY(1px) scale(.98); }
+    .btn-primary { background: linear-gradient(45deg, #667eea, #764ba2); color: white; }
+    .btn-secondary { background: #22294e; color: #f0f2ff; border: 1px solid #39407a; }
+    .main { display: grid; grid-template-columns: 280px 1fr 300px; gap: 0; flex: 1; min-height: 0; }
+    .sidebar, .props { overflow-y: auto; }
+    .sidebar { background: #121634; border-right: 1px solid #212a61; padding: 12px; }
+    .props { background: #121634; border-left: 1px solid #212a61; padding: 12px; }
+    .section-title { font-size: 14px; font-weight: 900; color: #9aa3ff; margin: 8px 0; text-transform: uppercase; letter-spacing: .8px; }
+    .tool-card { background: #0f1433; border: 1px solid #20265a; border-radius: 12px; padding: 10px; margin: 10px 0; cursor: pointer; }
+    .tool-card:hover { border-color: #667eea; }
+    .tool-name { font-weight: 800; font-size: 14px; }
+    .tool-desc { font-size: 12px; color: #b5b9ff; opacity: .8; }
+    .center { display: flex; flex-direction: column; min-height: 0; }
+    .stage { flex: 1; margin: 12px; border-radius: 12px; background: #000; position: relative; display: grid; place-items: center; overflow: hidden; }
+    .canvas-wrap { width: 100%; height: 100%; display: grid; place-items: center; background: #000; }
+    #canvas { width: 100%; height: 100%; background: #000; }
+    .timeline { background: #121634; border-top: 1px solid #212a61; padding: 10px; }
+    .row { display: flex; align-items: center; gap: 8px; }
+    .label { font-size: 12px; color: #cfd3ff; width: 60px; }
+    input[type=range] { width: 100%; }
+    .chip { background: #1b2048; border: 1px solid #2d3777; border-radius: 999px; padding: 6px 10px; font-size: 12px; }
+    .notification { position: fixed; top: env(safe-area-inset-top, 16px); right: 16px; background: linear-gradient(45deg, #667eea, #764ba2); color: white; padding: 10px 14px; border-radius: 10px; transform: translateX(400px); transition: transform 0.25s ease; z-index: 1000; }
+    .notification.show { transform: translateX(0); }
+    .group { background: #0f1433; border: 1px solid #20265a; border-radius: 12px; padding: 10px; margin-bottom: 12px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .small { font-size: 12px; opacity: .85; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 980px) {
+      .main { grid-template-columns: 1fr; }
+      .sidebar, .props { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <div class="header">
+      <div class="logo">AI Video Editor Pro — v2</div>
+      <div class="header-controls">
+        <input id="fileInput" type="file" accept="video/*" hidden />
+        <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">Import</button>
+        <button id="recordBtn" class="btn btn-primary" onclick="toggleRecord()" disabled>Export</button>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="sidebar">
+        <div class="section-title">Editing</div>
+        <div class="group">
+          <div class="row"><span class="label">Speed</span><input id="speed" type="range" min="50" max="200" value="100" /></div>
+          <div class="row"><span class="label">Trim In</span><input id="trimIn" type="range" min="0" max="0" value="0" /></div>
+          <div class="row"><span class="label">Trim Out</span><input id="trimOut" type="range" min="0" max="0" value="0" /></div>
+          <div class="small">Tap timeline to seek • Trims constrain playback</div>
+        </div>
+
+        <div class="section-title">Effects</div>
+        <div class="group">
+          <div class="row"><span class="label">Bright</span><input id="fx_brightness" type="range" min="50" max="200" value="100" /></div>
+          <div class="row"><span class="label">Contrast</span><input id="fx_contrast" type="range" min="50" max="200" value="100" /></div>
+          <div class="row"><span class="label">Sat</span><input id="fx_saturate" type="range" min="0" max="300" value="100" /></div>
+          <div class="row"><span class="label">Hue</span><input id="fx_hue" type="range" min="-180" max="180" value="0" /></div>
+          <div class="row"><span class="label">Blur</span><input id="fx_blur" type="range" min="0" max="6" value="0" /></div>
+          <div class="row"><span class="label">Sepia</span><input id="fx_sepia" type="range" min="0" max="100" value="0" /></div>
+          <div class="row"><span class="label">Gray</span><input id="fx_gray" type="range" min="0" max="100" value="0" /></div>
+          <div class="row"><span class="label">Vignette</span><input id="fx_vignette" type="range" min="0" max="100" value="25" /></div>
+        </div>
+
+        <div class="section-title">Overlays</div>
+        <div class="group grid2">
+          <button class="btn btn-secondary" onclick="toggleLetterbox()">Letterbox</button>
+          <button class="btn btn-secondary" onclick="toggleWatermark()">Watermark</button>
+        </div>
+        <div class="small">Export format depends on iOS support. WebM on many devices; otherwise preview only.</div>
+      </div>
+
+      <div class="center">
+        <div class="stage">
+          <div class="canvas-wrap">
+            <canvas id="canvas"></canvas>
+          </div>
+        </div>
+        <div class="timeline">
+          <div class="row" style="justify-content:space-between;">
+            <div class="row">
+              <button id="playBtn" class="btn btn-secondary" onclick="togglePlay()" disabled>Play</button>
+              <span id="time" class="chip mono">00:00 / 00:00</span>
+            </div>
+            <div class="row small">
+              <span id="status" class="chip">Idle</span>
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <input id="seek" type="range" min="0" max="0" value="0" style="width:100%;" />
+          </div>
+        </div>
+      </div>
+
+      <div class="props">
+        <div class="section-title">How to Export</div>
+        <div class="group small">
+          <p>Tap <b>Export</b> to record the canvas. If your browser supports <code>MediaRecorder</code>, you'll get a downloadable video (often WebM). If not, use desktop export or server rendering.</p>
+          <ol>
+            <li>Set trims/effects.</li>
+            <li>Tap Export → it plays from In→Out and records.</li>
+            <li>Download appears automatically.</li>
+          </ol>
+        </div>
+        <div class="section-title">Shortcuts</div>
+        <div class="group small">
+          <p><b>Double-tap</b> Play to jump to Trim In. Touch the seek bar to scrub. Speed affects playback & export.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notification" id="toast">Ready</div>
+
+  <video id="video" playsinline webkit-playsinline style="display:none"></video>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const video = document.getElementById('video');
+    const fileInput = document.getElementById('fileInput');
+    const playBtn = document.getElementById('playBtn');
+    const recordBtn = document.getElementById('recordBtn');
+    const seek = document.getElementById('seek');
+    const time = document.getElementById('time');
+    const statusEl = document.getElementById('status');
+    const toast = document.getElementById('toast');
+
+    const speed = document.getElementById('speed');
+    const trimIn = document.getElementById('trimIn');
+    const trimOut = document.getElementById('trimOut');
+
+    const fx = {
+      brightness: document.getElementById('fx_brightness'),
+      contrast: document.getElementById('fx_contrast'),
+      saturate: document.getElementById('fx_saturate'),
+      hue: document.getElementById('fx_hue'),
+      blur: document.getElementById('fx_blur'),
+      sepia: document.getElementById('fx_sepia'),
+      gray: document.getElementById('fx_gray'),
+      vignette: document.getElementById('fx_vignette')
+    };
+
+    let rafId = null;
+    let hasVideo = false;
+    let letterbox = false;
+    let watermark = false;
+    let recording = false;
+    let recorder = null;
+    let chunks = [];
+    let lastW = 0, lastH = 0;
+
+    function toastMsg(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(()=>toast.classList.remove('show'), 2200);
+    }
+
+    function formatTime(s) {
+      s = Math.max(0, Math.floor(s));
+      const m = String(Math.floor(s/60)).padStart(2,'0');
+      const ss = String(s%60).padStart(2,'0');
+      return `${m}:${ss}`;
+    }
+
+    function fitCanvas() {
+      const wrap = canvas.parentElement.getBoundingClientRect();
+      const w = Math.floor(wrap.width);
+      const h = Math.floor(wrap.height);
+      if (w && h && (w !== lastW || h !== lastH)) {
+        lastW = w; lastH = h;
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        canvas.style.width = w + 'px';
+        canvas.style.height = h + 'px';
+        ctx.setTransform(dpr,0,0,dpr,0,0);
+      }
+    }
+
+    window.addEventListener('resize', fitCanvas);
+
+    fileInput.addEventListener('change', (e)=>{
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      video.src = url;
+      video.addEventListener('loadedmetadata', () => {
+        hasVideo = true;
+        const dur = Math.floor(video.duration || 0);
+        seek.max = dur;
+        seek.value = 0;
+        trimIn.max = dur; trimOut.max = dur; trimIn.value = 0; trimOut.value = dur;
+        time.textContent = `00:00 / ${formatTime(dur)}`;
+        playBtn.disabled = false;
+        recordBtn.disabled = false;
+        speed.value = 100;
+        fitCanvas();
+        toastMsg('Video loaded ✔');
+      }, { once:true });
+    });
+
+    function applyFilters() {
+      const f = [
+        `brightness(${fx.brightness.value}%)`,
+        `contrast(${fx.contrast.value}%)`,
+        `saturate(${fx.saturate.value}%)`,
+        `hue-rotate(${fx.hue.value}deg)`,
+        `blur(${fx.blur.value}px)`,
+        `sepia(${fx.sepia.value}%)`,
+        `grayscale(${fx.gray.value}%)`
+      ].join(' ');
+      ctx.filter = f;
+    }
+
+    function drawVignette() {
+      if (Number(fx.vignette.value) <= 0) return;
+      const w = canvas.width; const h = canvas.height;
+      ctx.save();
+      ctx.filter = 'none';
+      const g = ctx.createRadialGradient(w/2, h/2, Math.min(w,h)*0.2, w/2, h/2, Math.max(w,h)*0.6);
+      const alpha = Math.min(0.85, Number(fx.vignette.value)/100 * 0.6);
+      g.addColorStop(0, `rgba(0,0,0,0)`);
+      g.addColorStop(1, `rgba(0,0,0,${alpha})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,w,h);
+      ctx.restore();
+    }
+
+    function drawLetterbox() {
+      if (!letterbox) return;
+      const w = canvas.width; const h = canvas.height;
+      ctx.save(); ctx.filter='none'; ctx.fillStyle = 'rgba(0,0,0,.8)';
+      const bar = Math.floor(h * 0.1);
+      ctx.fillRect(0,0,w,bar);
+      ctx.fillRect(0,h-bar,w,bar);
+      ctx.restore();
+    }
+
+    function drawWatermark() {
+      if (!watermark) return;
+      const w = canvas.width; const h = canvas.height;
+      ctx.save(); ctx.filter='none';
+      ctx.globalAlpha = 0.25; ctx.fillStyle = '#ffffff'; ctx.font = 'bold 24px ui-monospace, monospace';
+      ctx.fillText('GLASSMAN AI • DEMO', Math.floor(w*0.05), Math.floor(h*0.9));
+      ctx.restore();
+    }
+
+    function render() {
+      rafId = requestAnimationFrame(render);
+      if (!hasVideo) return;
+      fitCanvas();
+
+      // Enforce trim window
+      const tIn = Number(trimIn.value);
+      const tOut = Number(trimOut.value);
+      if (!video.paused && (video.currentTime < tIn || video.currentTime > tOut)) {
+        video.currentTime = tIn;
+      }
+
+      // Fit video to canvas (contain)
+      const vw = video.videoWidth || 16;
+      const vh = video.videoHeight || 9;
+      const cw = canvas.width; const ch = canvas.height;
+      const dpr = Math.min(2, window.devicePixelRatio||1);
+      const sw = cw; const sh = ch;
+      const vr = vw/vh; const cr = sw/sh;
+      let dw, dh;
+      if (vr > cr) { dw = sw; dh = sw/vr; }
+      else { dh = sh; dw = sh*vr; }
+      const dx = (sw - dw)/2; const dy = (sh - dh)/2;
+
+      applyFilters();
+      ctx.clearRect(0,0,sw,sh);
+      try { ctx.drawImage(video, dx, dy, dw, dh); } catch(e) {}
+
+      // overlays
+      ctx.filter = 'none';
+      drawVignette();
+      drawLetterbox();
+      drawWatermark();
+
+      // UI
+      try {
+        const cur = Math.floor(video.currentTime || 0);
+        const dur = Math.floor(video.duration || 0);
+        time.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
+        if (Math.abs(Number(seek.value) - cur) > 1) seek.value = cur;
+      } catch(e){}
+    }
+
+    function togglePlay() {
+      if (!hasVideo) return;
+      if (video.paused) {
+        const rate = Number(speed.value)/100;
+        video.playbackRate = Math.max(0.25, Math.min(4, rate));
+        video.play();
+        playBtn.textContent = 'Pause';
+        statusEl.textContent = 'Playing';
+      } else {
+        video.pause();
+        playBtn.textContent = 'Play';
+        statusEl.textContent = 'Paused';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      render();
+      seek.addEventListener('input', (e)=>{
+        if (!hasVideo) return;
+        const v = Number(e.target.value);
+        video.currentTime = v;
+      }, { passive:true });
+
+      speed.addEventListener('input', ()=>{
+        if (!video.paused) {
+          video.playbackRate = Math.max(0.25, Math.min(4, Number(speed.value)/100));
+        }
+      });
+
+      [fx.brightness, fx.contrast, fx.saturate, fx.hue, fx.blur, fx.sepia, fx.gray, fx.vignette].forEach(el=>{
+        el.addEventListener('input', ()=>{});
+      });
+    });
+
+    function toggleLetterbox(){ letterbox = !letterbox; toastMsg(letterbox ? 'Letterbox ON' : 'Letterbox OFF'); }
+    function toggleWatermark(){ watermark = !watermark; toastMsg(watermark ? 'Watermark ON' : 'Watermark OFF'); }
+
+    // Export via MediaRecorder on the canvas stream when supported
+    async function toggleRecord() {
+      if (!hasVideo) return;
+      if (!('MediaRecorder' in window)) { toastMsg('Export not supported on this device'); return; }
+
+      if (!recording) {
+        // Start
+        const tIn = Number(trimIn.value), tOut = Number(trimOut.value);
+        if (tOut <= tIn) { toastMsg('Trim Out must be > Trim In'); return; }
+        try {
+          const stream = canvas.captureStream(30); // 30fps
+          const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9'
+                    : MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8'
+                    : 'video/webm';
+          recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 4_000_000 });
+          chunks = [];
+          recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+          recorder.onstop = saveRecording;
+
+          // Seek to trimIn and play until trimOut
+          video.currentTime = tIn;
+          const rate = Number(speed.value)/100;
+          video.playbackRate = Math.max(0.25, Math.min(4, rate));
+          await video.play();
+          recorder.start(100);
+          recording = true;
+          recordBtn.textContent = 'Stop Export';
+          statusEl.textContent = 'Recording';
+          toastMsg('Export started…');
+
+          const endWatcher = setInterval(()=>{
+            if (video.currentTime >= tOut || video.paused) {
+              clearInterval(endWatcher);
+              stopRecording();
+            }
+          }, 100);
+        } catch (e) {
+          console.error(e);
+          toastMsg('Export failed to start');
+        }
+      } else {
+        stopRecording();
+      }
+    }
+    function stopRecording(){
+      try { recorder && recorder.stop(); } catch(e){}
+      recording = false;
+      recordBtn.textContent = 'Export';
+      statusEl.textContent = 'Idle';
+      video.pause();
+      playBtn.textContent = 'Play';
+    }
+    function saveRecording() {
+      const blob = new Blob(chunks, { type: chunks?.[0]?.type || 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'aivideo-export.webm';
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 10000);
+      toastMsg('Export ready ✅');
+    }
+
+    // Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+    }
+  </script>
+</body>
+</html>
