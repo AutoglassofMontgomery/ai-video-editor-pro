@@ -1,0 +1,6 @@
+{
+  "builds": [{ "src": "ai-video-editor-pro-pwa-v2/**", "use": "@vercel/static" }],
+  "routes": [
+    { "src": "/(.*)", "dest": "ai-video-editor-pro-pwa-v2/$1" }
+  ]
+}
